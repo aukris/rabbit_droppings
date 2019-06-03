@@ -14,6 +14,7 @@ from rabbit_droppings import Writer
 from rabbit_droppings import _Rabbit
 from rabbit_droppings import _RabbitConfig
 
+
 class Arguments:
 
     @staticmethod
@@ -29,6 +30,10 @@ class Arguments:
         parser.add_option('-f', '--file',
                           dest='filename',
                           help='File path')
+        parser.add_option('-j', '--remove',
+                          dest='command',
+                          help='Module path of the celery task eg. users.tasks.send_notif',
+                          )
         parser.add_option('-d', '--dump',
                           dest='command',
                           action='store_const',
@@ -53,13 +58,18 @@ class Arguments:
             sys.exit('--file option is required')
         return options
 
+
 class Command:
 
     def __init__(self, name):
         self.name = name
+        self.queue = None
+        self.filename = ''
+        self.job_id = ''
 
     def execute(self):
         pass
+
 
 class Dump(Command):
 
@@ -68,7 +78,8 @@ class Dump(Command):
         output = open(self.filename, "w")
         writer = Writer(output)
         self.queue.dump(writer, destructive=destructive)
-        writer.close
+        writer.close()
+
 
 class Restore(Command):
 
@@ -76,7 +87,19 @@ class Restore(Command):
         input = open(self.filename, "r")
         reader = Reader(input)
         self.queue.restore(reader)
-        reader.close
+        reader.close()
+
+
+class RemoveJob(Command):
+
+    def execute(self):
+        output = open(self.filename, "w")
+        writer = Writer(output)
+        self.queue.dump(writer, destructive=True)
+        self.queue.restore_excluding_job(self.job_id)
+        writer.close()
+
+
 
 class Commands:
 
@@ -84,11 +107,13 @@ class Commands:
         "dump": Dump,
         "purge": Dump,
         "restore": Restore,
+        "remove": RemoveJob,
         }
 
     def get(self, command_name):
         klass = self.COMMAND_CLASSES[command_name]
         return klass(command_name)
+
 
 class Main:
 
@@ -102,15 +127,22 @@ class Main:
         if self._options.command is None:
             return        
         self._rabbit.connect()
-        command = self._commands.get(self._options.command)
+        command_name = self._options.command
+        if command_name not in ['dump', 'purge', 'restore']:
+            command = self._commands.get('remove')
+        else:
+            command = self._commands.get(command_name)
+        command.job_id = command_name
         command.queue = self._queue
         command.filename = self._options.filename
+
         command.execute()
         self._rabbit.disconnect()
 
     def _make_rabbit(self):
         config = _RabbitConfig(host=self._options.host)
         return _Rabbit(config)
+
 
 if __name__ == '__main__':
     Main().run()

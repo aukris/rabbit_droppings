@@ -74,6 +74,13 @@ The line was shown pretty-printed, but it's actually just one line:
 Using the command-line utilities
 ================================
 
+To remove a celery task
+
+::
+
+   rabbit_droppings --host localhost --queue jobs \
+      --file /path/to/save/file -remove 'users.tasks.reindex'
+
 To backup a queue
 
 ::

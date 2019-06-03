@@ -21,7 +21,7 @@ class _Rabbit:
         """Connect to the server.  Does nothing if already connected."""
         if self.is_connected():
             return
-        params = pika.ConnectionParameters(self._config.host)
+        params = pika.URLParameters(self._config.host)
         self._connection = pika.BlockingConnection(params)
         self._channel = self._connection.channel()
         self._connected = True

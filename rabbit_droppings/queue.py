@@ -1,4 +1,5 @@
 from pika_message import PikaMessage
+from rabbit_droppings import Message
 
 from reader import Reader
 
@@ -12,6 +13,7 @@ class _Queue:
         """Create an instance given a pika.Channel and the queue's name."""
         self._channel = channel
         self.name = name
+        self.jobs_array = []
 
     def read(self):
         """Read and return a Message, or None if the queue is empty.
@@ -74,7 +76,8 @@ class _Queue:
                 break
             writer.write(msg, flush=False)
             last_msg_written = msg
-        writer.flush()
+            self.jobs_array = writer.flush()
+
         if last_msg_written is not None:
             if destructive:
                 self.ack(last_msg_written, multiple=True)
@@ -94,3 +97,22 @@ class _Queue:
             if msg is None:
                 break
             self.publish(msg)
+
+    def restore_excluding_job(self, job_id):
+        total_jobs_count = len(self.jobs_array)
+        for x in self.jobs_array:
+            print (x['properties']['headers']['task'] )
+        priority_jobs_array = filter(lambda x: x['properties']['headers']['task'] != job_id, self.jobs_array)
+        priority_jobs_count = len(priority_jobs_array)
+
+        while True:
+            input = raw_input('Would you like to remove %d of the total %d jobs...'
+                              'You can always restore it later form the file  (Y/N)   ' % (
+                                total_jobs_count - priority_jobs_count, total_jobs_count))
+            if input == 'Y' or input == 'y' or input == 'yes':
+                break
+            elif input == 'N' or input == 'n' or input == 'no':
+                return None
+
+        for attrs in priority_jobs_array:
+            self.publish(Message(**attrs))
